@@ -35,5 +35,5 @@ Then virt-v2v tool uses this xml file for importing the guest VMs on Oracle Linu
 ### For NFS repository: 
 The NFS repository will get mounted on KVM host directly (No need of Repository exports). The rest procedure is same as above.
 
-For more information on migration procedure, Please following community document :
+For more information on migration procedure, Please refer following community document :
 https://blogs.oracle.com/scoter/migrate-oracle-vm-to-oracle-linux-kvm
