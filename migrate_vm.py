@@ -8,6 +8,9 @@ import time
 import os
 import subprocess
 import logging
+from getpass import getpass
+import ovirtsdk4 as sdk
+import ovirtsdk4.types as types
 
 # this is for For requests < 2.16.0
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
@@ -125,7 +128,7 @@ class OVMManager():
         if int(count) == 1:
             self.stopVM(vm)
             import_vm(vm,olvm)
-        
+
         elif int(count) == 2:
             import_vm(vm,olvm)
 
@@ -154,19 +157,56 @@ def import_vm(vm, olvm):
         print "\nNow, we are importing the guest VM\n"
         cluster = raw_input("Enter the cluster name in OLVM :")
         domain = raw_input("Enter the Storage domain name in OLVM:")
+        uuid = raw_input("Enter UUID of guest VM:")
         # os.system('export LIBGUESTFS_BACKEND=direct')
         os.putenv("LIBGUESTFS_BACKEND", "direct")
         check = raw_input("\nIf guest VM contains sparse disks(thin provisioning)then press 1 or press 2 for preallocated provisioning:")
         if int(check) == 1:
-            os.system(
+           rtn = os.system(
                 'virt-v2v -i libvirtxml "%s".xml -o ovirt-upload -oc https://"%s"/ovirt-engine/api -os %s -op /tmp/ovirt-admin-password -of raw -oo rhv-cluster="%s" -oo rhv-cafile=/root/ca.pem' % (
                 vm, olvm, domain, cluster))
         else:
-            os.system(
+            rtn = os.system(
                 'virt-v2v -i libvirtxml "%s".xml -o ovirt-upload -oc https://"%s"/ovirt-engine/api -os %s -op /tmp/ovirt-admin-password -of raw -oo rhv-cluster="%s" -oo rhv-cafile=/root/ca.pem -oa preallocated' % (
                 vm, olvm, domain, cluster))
 
-        print "\nGuest VM import completed..\n"
+        if rtn :
+           print "\nGuest VM migration Failed \n"
+        else :
+           edit_vm(vm,olvm,uuid)
+           print "\nGuest VM import completed..\n"
+
+def edit_vm(vm,olvm,uuid):
+        with open('/tmp/ovirt-admin-password', 'r') as file:
+             olvm_passwd = file.read().replace('\n', '')
+        # Create the connection to the server:
+        connection = sdk.Connection(
+            url="https://"+olvm+"/ovirt-engine/api",
+            username='admin@internal',
+            password=olvm_passwd,
+            ca_file='/root/ca.pem',
+            debug=True,
+            log=logging.getLogger(),
+        )
+        vm_name = uuid
+        new_vm_name = vm
+
+        # Find the virtual machine:
+        vms_service = connection.system_service().vms_service()
+        vm = vms_service.list(search='name= %s'% (vm_name))[0]
+        vm_service = vms_service.vm_service(vm.id)
+
+        vm_service.update(
+            vm=types.Vm(
+                name=new_vm_name,
+                display=types.Display(
+                   type=types.DisplayType.VNC
+                )
+            )
+        )
+
+        # Close the connection to the server:
+        connection.close()
 
 
 if __name__ == "__main__":
@@ -228,5 +268,3 @@ if __name__ == "__main__":
 
     else:
         print "Invalid option"
-
-
